@@ -9,6 +9,8 @@ permalink: /
 
 Simple command line application for capturing screen shots of webpages.
 
+[![gowebshot CLI](cli.png)](cli.png)
+
 ## Features
 
 - **Non-interactive mode** — Capture a screenshot with a single command using CLI flags.
