@@ -17,10 +17,6 @@ import (
 	"github.com/UnitVectorY-Labs/gowebshot/internal/config"
 )
 
-// pageSettleDelay is the time allowed for the page to stabilise after
-// navigation, zoom, and scroll adjustments before taking the screenshot.
-const pageSettleDelay = 500 * time.Millisecond
-
 // cdpRequest represents a Chrome DevTools Protocol command.
 type cdpRequest struct {
 	ID     int            `json:"id"`
@@ -191,7 +187,9 @@ func Capture(cfg config.Config) ([]byte, error) {
 	}
 
 	// Allow the page to settle after navigation, zoom, and scroll adjustments.
-	time.Sleep(pageSettleDelay)
+	if cfg.Delay > 0 {
+		time.Sleep(cfg.Delay)
+	}
 
 	result, err := send.call(ctx, "Page.captureScreenshot", map[string]any{
 		"format": "png",

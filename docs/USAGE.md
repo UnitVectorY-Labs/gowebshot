@@ -21,7 +21,7 @@ permalink: /usage
 gowebshot has two execution modes:
 
 - **Non-interactive mode** — Runs when any CLI flags are provided. Takes a single screenshot and exits.
-- **Interactive TUI mode** — Runs when no arguments are given. Opens a terminal UI for repeated captures.
+- **Interactive TUI mode** — Runs when no arguments are given. Opens a terminal UI for repeated captures. See [TUI](/tui) for the interactive workflow.
 
 ## Non-Interactive Mode
 
@@ -45,6 +45,7 @@ This captures a screenshot of the specified URL at the default resolution (1920�
 | `--height` | Custom viewport height (requires `--width`) | — |
 | `--zoom` | Page zoom factor | `1.0` |
 | `--scroll` | Vertical scroll in pixels | `0` |
+| `--delay` | Delay after page load before capture | `1s` |
 | `--chrome` | Explicit path to Chrome/Chromium | Auto-discover |
 
 ### Resolution Presets
@@ -76,6 +77,12 @@ Capture with zoom and scroll:
 gowebshot --url https://example.com --zoom 1.5 --scroll 200
 ```
 
+Capture after letting the page settle for 2 seconds:
+
+```bash
+gowebshot --url https://example.com --delay 2s
+```
+
 Save to a specific directory and filename:
 
 ```bash
@@ -89,31 +96,3 @@ Note: If the filename does not have an extension, `.png` is appended automatical
 If a file with the target name already exists, gowebshot automatically appends a numeric suffix to avoid overwriting:
 
 - `screenshot.png` → `screenshot2.png` → `screenshot3.png` → ...
-
-## Interactive TUI Mode
-
-Launch without arguments to start the interactive mode:
-
-```bash
-gowebshot
-```
-
-### Tabs
-
-The TUI provides four tabs:
-
-- **Generate** — Shows a summary of the current configuration and a button to trigger capture.
-- **Input** — Edit the URL to capture.
-- **Output** — Edit the output directory and filename.
-- **Settings** — Configure resolution preset, zoom, and scroll. Custom width/height fields appear when the "custom" preset is selected.
-
-### Keyboard Controls
-
-| Key | Action |
-|-----|--------|
-| `←`/`→` or `Tab`/`Shift+Tab` | Switch between tabs |
-| `↑`/`↓` | Move between fields |
-| `Enter` | Edit focused field or trigger action |
-| `Space` | Trigger generate on Generate tab |
-| `Esc` | Back (hierarchical: exit edit → close picker → move to top → return to Input → quit) |
-| `Ctrl+C` | Quit immediately |

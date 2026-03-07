@@ -2,8 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,15 +15,27 @@ import (
 	"github.com/UnitVectorY-Labs/gowebshot/internal/output"
 )
 
-// ── Message types ──────────────────────────────────────────────────────────
-
 type captureResultMsg struct {
 	path string
 	size int64
 	err  error
 }
 
-// ── Model ──────────────────────────────────────────────────────────────────
+type fieldID int
+
+const (
+	fieldNone fieldID = iota
+	fieldURL
+	fieldDir
+	fieldFilename
+	fieldWidth
+	fieldHeight
+	fieldZoom
+	fieldScroll
+	fieldDelay
+)
+
+const delayStep = 100 * time.Millisecond
 
 type model struct {
 	tabs      []string
@@ -29,28 +43,22 @@ type model struct {
 
 	fieldIndex int
 
-	// Input tab
-	url        string
-	urlEditing bool
+	url      string
+	dir      string
+	filename string
 
-	// Output tab
-	dir             string
-	dirEditing      bool
-	filename        string
-	filenameEditing bool
+	presetIndex   int
+	presetNames   []string
+	presetPicking bool
 
-	// Settings tab
-	presetIndex    int
-	presetNames    []string
-	presetPicking  bool
-	zoom           string
-	zoomEditing    bool
-	scroll         string
-	scrollEditing  bool
-	customWidth    string
-	customWidthEditing  bool
-	customHeight   string
-	customHeightEditing bool
+	customWidth  string
+	customHeight string
+	zoomPercent  string
+	scroll       string
+	delay        string
+
+	editingField fieldID
+	fieldCursors map[fieldID]int
 
 	chromePath string
 
@@ -64,43 +72,33 @@ type model struct {
 	escOnce bool
 }
 
-// ── Styling ────────────────────────────────────────────────────────────────
-
 var (
-	// Colors
-	primaryColor   = lipgloss.Color("#7C3AED") // violet
-	accentColor    = lipgloss.Color("#A78BFA") // light violet
-	dimColor       = lipgloss.Color("#6B7280") // gray
-	textColor      = lipgloss.Color("#E5E7EB") // light gray
-	brightColor    = lipgloss.Color("#F9FAFB") // near-white
-	successColor   = lipgloss.Color("#34D399") // green
-	errorColor     = lipgloss.Color("#F87171") // red
-	bgColor        = lipgloss.Color("#1F2937") // dark bg
-	fieldBgColor   = lipgloss.Color("#374151") // field bg
-	activeBgColor  = lipgloss.Color("#4C1D95") // active tab bg
+	primaryColor  = lipgloss.Color("#F28C28")
+	accentColor   = lipgloss.Color("#FFB869")
+	dimColor      = lipgloss.Color("#7E95AD")
+	textColor     = lipgloss.Color("#E8EEF5")
+	brightColor   = lipgloss.Color("#FFF7ED")
+	successColor  = lipgloss.Color("#67E8B2")
+	errorColor    = lipgloss.Color("#FF8C82")
+	bgColor       = lipgloss.Color("#081B2E")
+	fieldBgColor  = lipgloss.Color("#102A44")
+	activeBgColor = lipgloss.Color("#173A5E")
 
-	// Tab styles
 	activeTabStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(brightColor).
+			Foreground(bgColor).
 			Background(primaryColor).
 			Padding(0, 2)
 
 	inactiveTabStyle = lipgloss.NewStyle().
-				Foreground(dimColor).
+				Foreground(textColor).
 				Background(fieldBgColor).
 				Padding(0, 2)
 
-	tabGapStyle = lipgloss.NewStyle().
-			Background(bgColor).
-			PaddingRight(0)
-
-	// Content area
 	contentStyle = lipgloss.NewStyle().
 			Padding(1, 2).
 			Foreground(textColor)
 
-	// Field styles
 	labelStyle = lipgloss.NewStyle().
 			Foreground(accentColor).
 			Bold(true).
@@ -122,7 +120,6 @@ var (
 			Foreground(primaryColor).
 			Bold(true)
 
-	// Button
 	buttonStyle = lipgloss.NewStyle().
 			Foreground(brightColor).
 			Background(primaryColor).
@@ -135,7 +132,6 @@ var (
 				Padding(0, 3).
 				Bold(true)
 
-	// Message styles
 	successMsgStyle = lipgloss.NewStyle().
 			Foreground(successColor).
 			Bold(true)
@@ -144,119 +140,145 @@ var (
 			Foreground(errorColor).
 			Bold(true)
 
-	// Section border
 	sectionStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(primaryColor).
+			Background(bgColor).
 			Padding(1, 2)
 
-	// Help text
 	helpStyle = lipgloss.NewStyle().
 			Foreground(dimColor).
 			Italic(true)
 
-	// Title
 	titleStyle = lipgloss.NewStyle().
 			Foreground(primaryColor).
 			Bold(true)
 )
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
 func (m model) currentPreset() string {
 	if m.presetIndex >= 0 && m.presetIndex < len(m.presetNames) {
 		return m.presetNames[m.presetIndex]
 	}
-	return "widescreen"
+	return string(config.PresetWidescreen)
+}
+
+func presetDimensions(name string) (int, int, bool) {
+	dims, ok := config.Presets[config.Preset(name)]
+	if !ok {
+		return 0, 0, false
+	}
+	return dims.Width, dims.Height, true
+}
+
+func parseIntOrDefault(value string, fallback int) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func parseDurationOrDefault(value string, fallback time.Duration) time.Duration {
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func formatDurationValue(d time.Duration) string {
+	return d.String()
 }
 
 func (m model) resolutionWidth() int {
-	if m.currentPreset() == "custom" {
-		w, _ := strconv.Atoi(m.customWidth)
-		return w
+	if width := parseIntOrDefault(m.customWidth, 0); width > 0 {
+		return width
 	}
-	p := config.Preset(m.currentPreset())
-	if dims, ok := config.Presets[p]; ok {
-		return dims.Width
+	if width, _, ok := presetDimensions(m.currentPreset()); ok {
+		return width
 	}
-	return 1920
+	return config.DefaultConfig().Width
 }
 
 func (m model) resolutionHeight() int {
-	if m.currentPreset() == "custom" {
-		h, _ := strconv.Atoi(m.customHeight)
-		return h
+	if height := parseIntOrDefault(m.customHeight, 0); height > 0 {
+		return height
 	}
-	p := config.Preset(m.currentPreset())
-	if dims, ok := config.Presets[p]; ok {
-		return dims.Height
+	if _, height, ok := presetDimensions(m.currentPreset()); ok {
+		return height
 	}
-	return 1080
+	return config.DefaultConfig().Height
 }
 
 func (m model) fieldCountForTab() int {
 	switch m.activeTab {
-	case 0: // Generate
-		return 1 // just the button
-	case 1: // Input
+	case 0:
 		return 1
-	case 2: // Output
+	case 1:
+		return 1
+	case 2:
 		return 2
-	case 3: // Settings
-		if m.currentPreset() == "custom" {
-			return 5 // preset, zoom, scroll, width, height
-		}
-		return 3 // preset, zoom, scroll
+	case 3:
+		return 6
+	default:
+		return 0
 	}
-	return 0
 }
 
 func (m model) buildConfig() config.Config {
-	z, err := strconv.ParseFloat(m.zoom, 64)
-	if err != nil {
-		z = 1.0
+	defaults := config.DefaultConfig()
+
+	zoomPercent := parseIntOrDefault(m.zoomPercent, int(math.Round(defaults.Zoom*100)))
+	if zoomPercent < 1 {
+		zoomPercent = 1
 	}
-	s, err := strconv.Atoi(m.scroll)
-	if err != nil {
-		s = 0
+
+	scroll := parseIntOrDefault(m.scroll, defaults.Scroll)
+	if scroll < 0 {
+		scroll = 0
+	}
+
+	delay := parseDurationOrDefault(m.delay, defaults.Delay)
+	if delay < 0 {
+		delay = 0
 	}
 
 	cfg := config.Config{
 		URL:        m.url,
 		Dir:        m.dir,
 		Filename:   m.filename,
+		Preset:     config.Preset(m.currentPreset()),
 		Width:      m.resolutionWidth(),
 		Height:     m.resolutionHeight(),
-		Zoom:       z,
-		Scroll:     s,
+		Zoom:       float64(zoomPercent) / 100,
+		Scroll:     scroll,
+		Delay:      delay,
 		ChromePath: m.chromePath,
-	}
-
-	preset := m.currentPreset()
-	if preset != "custom" {
-		cfg.Preset = config.Preset(preset)
-	} else {
-		cfg.Preset = config.PresetCustom
 	}
 
 	return cfg
 }
 
 func (m *model) stopAllEditing() {
-	m.urlEditing = false
-	m.dirEditing = false
-	m.filenameEditing = false
-	m.zoomEditing = false
-	m.scrollEditing = false
-	m.customWidthEditing = false
-	m.customHeightEditing = false
+	m.editingField = fieldNone
 	m.presetPicking = false
 }
 
 func (m model) isEditing() bool {
-	return m.urlEditing || m.dirEditing || m.filenameEditing ||
-		m.zoomEditing || m.scrollEditing ||
-		m.customWidthEditing || m.customHeightEditing
+	return m.editingField != fieldNone
+}
+
+func isNumericField(field fieldID) bool {
+	switch field {
+	case fieldWidth, fieldHeight, fieldZoom, fieldScroll, fieldDelay:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m model) Init() tea.Cmd {
+	return nil
 }
 
 func doCapture(cfg config.Config) tea.Cmd {
@@ -292,12 +314,6 @@ func humanSize(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// ── Init / Update / View ──────────────────────────────────────────────────
-
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -317,180 +333,110 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Always allow Ctrl+C
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
 		}
-
-		// Block input while capturing
 		if m.capturing {
 			return m, nil
 		}
-
-		// Reset escOnce on any non-esc key
 		if msg.Type != tea.KeyEsc {
 			m.escOnce = false
 		}
-
-		// Handle text editing mode
 		if m.isEditing() {
 			return m.handleEditing(msg)
 		}
-
-		// Handle preset picker mode
 		if m.presetPicking {
 			return m.handlePresetPicker(msg)
 		}
-
 		return m.handleNormal(msg)
 	}
+
 	return m, nil
 }
 
 func (m model) handleEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
-	case tea.KeyEsc:
-		m.stopAllEditing()
-		return m, nil
-	case tea.KeyEnter:
+	case tea.KeyEsc, tea.KeyEnter:
 		m.stopAllEditing()
 		return m, nil
 	case tea.KeyBackspace:
 		m.editBackspace()
 		return m, nil
+	case tea.KeyDelete:
+		m.editDelete()
+		return m, nil
+	case tea.KeyLeft:
+		m.moveCursor(-1)
+		return m, nil
+	case tea.KeyRight:
+		m.moveCursor(1)
+		return m, nil
+	case tea.KeyHome:
+		m.moveCursorToStart()
+		return m, nil
+	case tea.KeyEnd:
+		m.moveCursorToEnd()
+		return m, nil
+	case tea.KeyUp:
+		m.adjustEditingValue(1)
+		return m, nil
+	case tea.KeyDown:
+		m.adjustEditingValue(-1)
+		return m, nil
 	default:
 		if msg.Type == tea.KeySpace {
 			m.editInsert(" ")
-		} else if len(msg.Runes) > 0 {
+			return m, nil
+		}
+		if len(msg.Runes) > 0 {
 			m.editInsert(string(msg.Runes))
 		}
 		return m, nil
 	}
 }
 
-func (m *model) editInsert(s string) {
-	switch {
-	case m.urlEditing:
-		m.url += s
-	case m.dirEditing:
-		m.dir += s
-	case m.filenameEditing:
-		m.filename += s
-	case m.zoomEditing:
-		m.zoom += s
-	case m.scrollEditing:
-		m.scroll += s
-	case m.customWidthEditing:
-		m.customWidth += s
-	case m.customHeightEditing:
-		m.customHeight += s
-	}
-}
-
-func (m *model) editBackspace() {
-	del := func(s string) string {
-		if len(s) > 0 {
-			return s[:len(s)-1]
-		}
-		return s
-	}
-	switch {
-	case m.urlEditing:
-		m.url = del(m.url)
-	case m.dirEditing:
-		m.dir = del(m.dir)
-	case m.filenameEditing:
-		m.filename = del(m.filename)
-	case m.zoomEditing:
-		m.zoom = del(m.zoom)
-	case m.scrollEditing:
-		m.scroll = del(m.scroll)
-	case m.customWidthEditing:
-		m.customWidth = del(m.customWidth)
-	case m.customHeightEditing:
-		m.customHeight = del(m.customHeight)
-	}
-}
-
-func (m model) handlePresetPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) handlePresetPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.presetPicking = false
-		return m, nil
-	case tea.KeyLeft:
+	case tea.KeyLeft, tea.KeyUp:
 		if m.presetIndex > 0 {
 			m.presetIndex--
 		} else {
 			m.presetIndex = len(m.presetNames) - 1
 		}
 		m.syncPresetDimensions()
-		return m, nil
-	case tea.KeyRight:
+	case tea.KeyRight, tea.KeyDown:
 		m.presetIndex = (m.presetIndex + 1) % len(m.presetNames)
 		m.syncPresetDimensions()
-		return m, nil
 	case tea.KeyEnter:
 		m.presetPicking = false
-		return m, nil
 	}
-	return m, nil
-}
-
-func (m *model) syncPresetDimensions() {
-	preset := m.currentPreset()
-	if preset == "custom" {
-		return
-	}
-	p := config.Preset(preset)
-	if dims, ok := config.Presets[p]; ok {
-		m.customWidth = strconv.Itoa(dims.Width)
-		m.customHeight = strconv.Itoa(dims.Height)
-	}
+	return *m, nil
 }
 
 func (m model) handleNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
-	case tea.KeyTab:
+	case tea.KeyTab, tea.KeyRight:
 		m.activeTab = (m.activeTab + 1) % len(m.tabs)
 		m.fieldIndex = 0
-		return m, nil
-
-	case tea.KeyShiftTab:
+	case tea.KeyShiftTab, tea.KeyLeft:
 		m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
 		m.fieldIndex = 0
-		return m, nil
-
-	case tea.KeyRight:
-		m.activeTab = (m.activeTab + 1) % len(m.tabs)
-		m.fieldIndex = 0
-		return m, nil
-
-	case tea.KeyLeft:
-		m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
-		m.fieldIndex = 0
-		return m, nil
-
 	case tea.KeyDown:
-		maxIdx := m.fieldCountForTab() - 1
-		if m.fieldIndex < maxIdx {
+		if maxIdx := m.fieldCountForTab() - 1; m.fieldIndex < maxIdx {
 			m.fieldIndex++
 		}
-		return m, nil
-
 	case tea.KeyUp:
 		if m.fieldIndex > 0 {
 			m.fieldIndex--
 		}
-		return m, nil
-
 	case tea.KeyEnter:
 		return m.activateField()
-
 	case tea.KeySpace:
 		if msg.String() == " " {
 			return m.activateField()
 		}
-
 	case tea.KeyEsc:
 		return m.handleEsc()
 	}
@@ -499,36 +445,34 @@ func (m model) handleNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) activateField() (tea.Model, tea.Cmd) {
 	switch m.activeTab {
-	case 0: // Generate
+	case 0:
 		if m.fieldIndex == 0 {
 			return m.triggerCapture()
 		}
-	case 1: // Input
-		if m.fieldIndex == 0 {
-			m.stopAllEditing()
-			m.urlEditing = true
-		}
-	case 2: // Output
-		m.stopAllEditing()
+	case 1:
+		m.startEditing(fieldURL)
+	case 2:
 		switch m.fieldIndex {
 		case 0:
-			m.dirEditing = true
+			m.startEditing(fieldDir)
 		case 1:
-			m.filenameEditing = true
+			m.startEditing(fieldFilename)
 		}
-	case 3: // Settings
-		m.stopAllEditing()
+	case 3:
 		switch m.fieldIndex {
-		case 0: // Preset
+		case 0:
+			m.stopAllEditing()
 			m.presetPicking = true
-		case 1: // Zoom
-			m.zoomEditing = true
-		case 2: // Scroll
-			m.scrollEditing = true
-		case 3: // Width (custom)
-			m.customWidthEditing = true
-		case 4: // Height (custom)
-			m.customHeightEditing = true
+		case 1:
+			m.startEditing(fieldWidth)
+		case 2:
+			m.startEditing(fieldHeight)
+		case 3:
+			m.startEditing(fieldZoom)
+		case 4:
+			m.startEditing(fieldScroll)
+		case 5:
+			m.startEditing(fieldDelay)
 		}
 	}
 	return m, nil
@@ -538,9 +482,9 @@ func (m model) triggerCapture() (tea.Model, tea.Cmd) {
 	cfg := m.buildConfig()
 	if err := cfg.Validate(); err != nil {
 		errMsg := err.Error()
+		m.message = errMsg
 		m.messageIsError = true
 
-		// Switch to the relevant tab based on error
 		switch {
 		case strings.Contains(errMsg, "url"):
 			m.activeTab = 1
@@ -549,14 +493,21 @@ func (m model) triggerCapture() (tea.Model, tea.Cmd) {
 		case strings.Contains(errMsg, "filename"):
 			m.activeTab = 2
 			m.fieldIndex = 1
-			m.message = errMsg
-		case strings.Contains(errMsg, "width"), strings.Contains(errMsg, "height"),
-			strings.Contains(errMsg, "zoom"), strings.Contains(errMsg, "scroll"):
+		case strings.Contains(errMsg, "width"):
 			m.activeTab = 3
-			m.fieldIndex = 0
-			m.message = errMsg
-		default:
-			m.message = errMsg
+			m.fieldIndex = 1
+		case strings.Contains(errMsg, "height"):
+			m.activeTab = 3
+			m.fieldIndex = 2
+		case strings.Contains(errMsg, "zoom"):
+			m.activeTab = 3
+			m.fieldIndex = 3
+		case strings.Contains(errMsg, "scroll"):
+			m.activeTab = 3
+			m.fieldIndex = 4
+		case strings.Contains(errMsg, "delay"):
+			m.activeTab = 3
+			m.fieldIndex = 5
 		}
 		return m, nil
 	}
@@ -568,18 +519,15 @@ func (m model) triggerCapture() (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleEsc() (tea.Model, tea.Cmd) {
-	// 1. If fieldIndex > 0, move to top
 	if m.fieldIndex > 0 {
 		m.fieldIndex = 0
 		return m, nil
 	}
-	// 2. If not on Input tab, go to Input tab
 	if m.activeTab != 1 {
 		m.activeTab = 1
 		m.fieldIndex = 0
 		return m, nil
 	}
-	// 3. At top of Input tab: double-esc to quit
 	if m.escOnce {
 		return m, tea.Quit
 	}
@@ -589,30 +537,253 @@ func (m model) handleEsc() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ── View ───────────────────────────────────────────────────────────────────
+func (m *model) startEditing(field fieldID) {
+	m.stopAllEditing()
+	m.editingField = field
+	m.setCursorForField(field, len([]rune(m.valueForField(field))))
+}
+
+func (m *model) syncPresetDimensions() {
+	if width, height, ok := presetDimensions(m.currentPreset()); ok {
+		m.customWidth = strconv.Itoa(width)
+		m.customHeight = strconv.Itoa(height)
+	}
+}
+
+func (m *model) syncPresetFromDimensions() {
+	width := parseIntOrDefault(m.customWidth, 0)
+	height := parseIntOrDefault(m.customHeight, 0)
+	if width <= 0 || height <= 0 {
+		m.setPresetByName(string(config.PresetCustom))
+		return
+	}
+
+	for _, name := range config.PresetNames() {
+		presetWidth, presetHeight, ok := presetDimensions(name)
+		if ok && presetWidth == width && presetHeight == height {
+			m.setPresetByName(name)
+			return
+		}
+	}
+
+	m.setPresetByName(string(config.PresetCustom))
+}
+
+func (m *model) setPresetByName(name string) {
+	for i, presetName := range m.presetNames {
+		if presetName == name {
+			m.presetIndex = i
+			return
+		}
+	}
+}
+
+func (m model) valueForField(field fieldID) string {
+	switch field {
+	case fieldURL:
+		return m.url
+	case fieldDir:
+		return m.dir
+	case fieldFilename:
+		return m.filename
+	case fieldWidth:
+		return m.customWidth
+	case fieldHeight:
+		return m.customHeight
+	case fieldZoom:
+		return m.zoomPercent
+	case fieldScroll:
+		return m.scroll
+	case fieldDelay:
+		return m.delay
+	default:
+		return ""
+	}
+}
+
+func (m *model) setValueForField(field fieldID, value string) {
+	switch field {
+	case fieldURL:
+		m.url = value
+	case fieldDir:
+		m.dir = value
+	case fieldFilename:
+		m.filename = value
+	case fieldWidth:
+		m.customWidth = value
+	case fieldHeight:
+		m.customHeight = value
+	case fieldZoom:
+		m.zoomPercent = value
+	case fieldScroll:
+		m.scroll = value
+	case fieldDelay:
+		m.delay = value
+	}
+}
+
+func (m model) cursorForField(field fieldID) int {
+	return m.fieldCursors[field]
+}
+
+func (m *model) setCursorForField(field fieldID, cursor int) {
+	valueLen := len([]rune(m.valueForField(field)))
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > valueLen {
+		cursor = valueLen
+	}
+	m.fieldCursors[field] = cursor
+}
+
+func (m *model) moveCursor(delta int) {
+	field := m.editingField
+	m.setCursorForField(field, m.cursorForField(field)+delta)
+}
+
+func (m *model) moveCursorToStart() {
+	m.setCursorForField(m.editingField, 0)
+}
+
+func (m *model) moveCursorToEnd() {
+	m.setCursorForField(m.editingField, len([]rune(m.valueForField(m.editingField))))
+}
+
+func (m *model) editInsert(insert string) {
+	field := m.editingField
+	if field == fieldNone {
+		return
+	}
+
+	value := []rune(m.valueForField(field))
+	cursor := m.cursorForField(field)
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(value) {
+		cursor = len(value)
+	}
+
+	insertRunes := []rune(insert)
+	value = append(value[:cursor], append(insertRunes, value[cursor:]...)...)
+	m.setValueForField(field, string(value))
+	m.setCursorForField(field, cursor+len(insertRunes))
+
+	if field == fieldWidth || field == fieldHeight {
+		m.syncPresetFromDimensions()
+	}
+}
+
+func (m *model) editBackspace() {
+	field := m.editingField
+	if field == fieldNone {
+		return
+	}
+
+	value := []rune(m.valueForField(field))
+	cursor := m.cursorForField(field)
+	if cursor == 0 || len(value) == 0 {
+		return
+	}
+
+	value = append(value[:cursor-1], value[cursor:]...)
+	m.setValueForField(field, string(value))
+	m.setCursorForField(field, cursor-1)
+
+	if field == fieldWidth || field == fieldHeight {
+		m.syncPresetFromDimensions()
+	}
+}
+
+func (m *model) editDelete() {
+	field := m.editingField
+	if field == fieldNone {
+		return
+	}
+
+	value := []rune(m.valueForField(field))
+	cursor := m.cursorForField(field)
+	if cursor >= len(value) {
+		return
+	}
+
+	value = append(value[:cursor], value[cursor+1:]...)
+	m.setValueForField(field, string(value))
+
+	if field == fieldWidth || field == fieldHeight {
+		m.syncPresetFromDimensions()
+	}
+}
+
+func (m *model) adjustEditingValue(step int) {
+	field := m.editingField
+	if !isNumericField(field) {
+		return
+	}
+
+	switch field {
+	case fieldWidth:
+		width := parseIntOrDefault(m.customWidth, m.resolutionWidth())
+		width += step
+		if width < 1 {
+			width = 1
+		}
+		m.customWidth = strconv.Itoa(width)
+		m.syncPresetFromDimensions()
+		m.moveCursorToEnd()
+	case fieldHeight:
+		height := parseIntOrDefault(m.customHeight, m.resolutionHeight())
+		height += step
+		if height < 1 {
+			height = 1
+		}
+		m.customHeight = strconv.Itoa(height)
+		m.syncPresetFromDimensions()
+		m.moveCursorToEnd()
+	case fieldZoom:
+		zoom := parseIntOrDefault(m.zoomPercent, 100)
+		zoom += step
+		if zoom < 1 {
+			zoom = 1
+		}
+		m.zoomPercent = strconv.Itoa(zoom)
+		m.moveCursorToEnd()
+	case fieldScroll:
+		scroll := parseIntOrDefault(m.scroll, 0)
+		scroll += step
+		if scroll < 0 {
+			scroll = 0
+		}
+		m.scroll = strconv.Itoa(scroll)
+		m.moveCursorToEnd()
+	case fieldDelay:
+		delay := parseDurationOrDefault(m.delay, config.DefaultConfig().Delay)
+		delay += time.Duration(step) * delayStep
+		if delay < 0 {
+			delay = 0
+		}
+		m.delay = formatDurationValue(delay)
+		m.moveCursorToEnd()
+	}
+}
 
 func (m model) View() string {
-	// Terminal too small
 	if m.width < 60 || m.height < 16 {
 		msg := lipgloss.NewStyle().
 			Foreground(errorColor).
 			Bold(true).
-			Render("Terminal too small. Resize to at least 60×16.")
+			Render("Terminal too small. Resize to at least 60x16.")
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, msg)
 	}
 
 	var b strings.Builder
 
-	// Header
-	header := titleStyle.Render("  gowebshot")
-	b.WriteString(header)
+	b.WriteString(titleStyle.Render("  gowebshot"))
 	b.WriteString("\n\n")
-
-	// Tab bar
 	b.WriteString(m.renderTabBar())
 	b.WriteString("\n")
 
-	// Content
 	contentWidth := m.width - 6
 	if contentWidth < 50 {
 		contentWidth = 50
@@ -630,11 +801,9 @@ func (m model) View() string {
 		content = m.viewSettings()
 	}
 
-	boxStyle := sectionStyle.Width(contentWidth)
-	b.WriteString(boxStyle.Render(content))
+	b.WriteString(sectionStyle.Width(contentWidth).Render(contentStyle.Render(content)))
 	b.WriteString("\n\n")
 
-	// Message line
 	if m.message != "" {
 		if m.capturing {
 			spinner := lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render("⟳ ")
@@ -647,7 +816,6 @@ func (m model) View() string {
 		b.WriteString("\n")
 	}
 
-	// Help bar
 	b.WriteString("\n")
 	b.WriteString(m.renderHelp())
 
@@ -663,18 +831,17 @@ func (m model) renderTabBar() string {
 			tabs = append(tabs, inactiveTabStyle.Render(t))
 		}
 	}
-	row := lipgloss.JoinHorizontal(lipgloss.Bottom, tabs...)
 
-	// Draw a line under the tabs
 	barWidth := m.width - 4
 	if barWidth < 50 {
 		barWidth = 50
 	}
+
 	line := lipgloss.NewStyle().
 		Foreground(primaryColor).
 		Render(strings.Repeat("─", barWidth))
 
-	return row + "\n" + line
+	return lipgloss.JoinHorizontal(lipgloss.Bottom, tabs...) + "\n" + line
 }
 
 func (m model) renderHelp() string {
@@ -682,43 +849,44 @@ func (m model) renderHelp() string {
 		return helpStyle.Render("  Ctrl+C quit")
 	}
 	if m.isEditing() {
-		return helpStyle.Render("  Enter confirm • Esc cancel • Type to edit")
+		text := "  Enter confirm • Esc cancel • ←/→ move cursor • Backspace/Delete edit"
+		if isNumericField(m.editingField) {
+			text += " • ↑/↓ adjust value"
+		}
+		return helpStyle.Render(text)
 	}
 	if m.presetPicking {
-		return helpStyle.Render("  ←/→ cycle preset • Enter confirm • Esc cancel")
+		return helpStyle.Render("  ←/→/↑/↓ cycle preset • Enter confirm • Esc cancel")
 	}
 	return helpStyle.Render("  ←/→/Tab switch tabs • ↑/↓ move fields • Enter select • Esc back • Ctrl+C quit")
 }
-
-// ── Tab Views ──────────────────────────────────────────────────────────────
 
 func (m model) viewGenerate() string {
 	var lines []string
 
 	urlVal := m.url
-	if urlVal == "" {
+	if strings.TrimSpace(urlVal) == "" {
 		urlVal = lipgloss.NewStyle().Foreground(dimColor).Render("(not set)")
 	}
 
 	dirVal := m.dir
-	if dirVal == "" {
+	if strings.TrimSpace(dirVal) == "" {
 		dirVal = lipgloss.NewStyle().Foreground(dimColor).Render("(current directory)")
 	}
-
-	preset := m.currentPreset()
-	resolution := fmt.Sprintf("%s %dx%d", preset, m.resolutionWidth(), m.resolutionHeight())
 
 	lines = append(lines,
 		renderReadOnlyField("URL", urlVal),
 		renderReadOnlyField("Directory", dirVal),
 		renderReadOnlyField("Filename", m.filename),
-		renderReadOnlyField("Resolution", resolution),
-		renderReadOnlyField("Zoom", m.zoom+"×"),
+		renderReadOnlyField("Preset", m.presetLabel(m.currentPreset())),
+		renderReadOnlyField("Width", fmt.Sprintf("%d px", m.resolutionWidth())),
+		renderReadOnlyField("Height", fmt.Sprintf("%d px", m.resolutionHeight())),
+		renderReadOnlyField("Zoom", m.zoomPercent+"%"),
 		renderReadOnlyField("Scroll", m.scroll+"px"),
+		renderReadOnlyField("Delay", m.delay),
 		"",
 	)
 
-	// Generate button
 	if m.fieldIndex == 0 {
 		lines = append(lines, "  "+buttonActiveStyle.Render("▸ Generate Screenshot"))
 	} else {
@@ -729,62 +897,45 @@ func (m model) viewGenerate() string {
 }
 
 func renderReadOnlyField(label, value string) string {
-	l := labelStyle.Render(label + ":")
-	v := valueStyle.Render(value)
-	return l + " " + v
+	return labelStyle.Render(label+":") + " " + valueStyle.Render(value)
 }
 
 func (m model) viewInput() string {
-	var lines []string
-
-	lines = append(lines, m.renderEditableField("URL", m.url, m.urlEditing, 0))
-	lines = append(lines, "")
-	lines = append(lines, helpStyle.Render("  Enter the URL of the page to capture."))
-
-	return strings.Join(lines, "\n")
+	return strings.Join([]string{
+		m.renderEditableField("URL", m.url, m.editingField == fieldURL, 0),
+		"",
+		helpStyle.Render("  Enter the URL of the page to capture."),
+	}, "\n")
 }
 
 func (m model) viewOutput() string {
-	var lines []string
-
-	dirDisplay := m.dir
-	if dirDisplay == "" {
-		dirDisplay = lipgloss.NewStyle().Foreground(dimColor).Render("(current directory)")
-	}
-	lines = append(lines, m.renderEditableField("Directory", m.dir, m.dirEditing, 0))
-	lines = append(lines, m.renderEditableField("Filename", m.filename, m.filenameEditing, 1))
-	lines = append(lines, "")
-	lines = append(lines, helpStyle.Render("  Press Enter to edit, Esc to stop editing."))
-
-	return strings.Join(lines, "\n")
+	return strings.Join([]string{
+		m.renderEditableField("Directory", m.dir, m.editingField == fieldDir, 0),
+		m.renderEditableField("Filename", m.filename, m.editingField == fieldFilename, 1),
+		"",
+		helpStyle.Render("  Use ← and → while editing to move through long paths."),
+	}, "\n")
 }
 
 func (m model) viewSettings() string {
 	var lines []string
 
-	// Preset row
-	presetVal := m.renderPresetField()
-	if m.fieldIndex == 0 {
-		lines = append(lines, cursorStyle.Render("▸ ")+labelStyle.Render("Preset:")+
-			" "+presetVal)
+	presetValue := m.renderPresetField()
+	if m.fieldIndex == 0 && !m.isEditing() && !m.presetPicking {
+		lines = append(lines, cursorStyle.Render("▸ ")+labelStyle.Render("Preset:")+" "+presetValue)
 	} else {
-		lines = append(lines, "  "+labelStyle.Render("Preset:")+" "+presetVal)
+		lines = append(lines, "  "+labelStyle.Render("Preset:")+" "+presetValue)
 	}
 
-	// Zoom
-	lines = append(lines, m.renderEditableField("Zoom", m.zoom, m.zoomEditing, 1))
-
-	// Scroll
-	lines = append(lines, m.renderEditableField("Scroll", m.scroll, m.scrollEditing, 2))
-
-	// Custom width/height
-	if m.currentPreset() == "custom" {
-		lines = append(lines, m.renderEditableField("Width", m.customWidth, m.customWidthEditing, 3))
-		lines = append(lines, m.renderEditableField("Height", m.customHeight, m.customHeightEditing, 4))
-	}
-
-	lines = append(lines, "")
-	lines = append(lines, helpStyle.Render("  Press Enter to edit fields or open preset picker."))
+	lines = append(lines,
+		m.renderEditableField("Width", m.customWidth, m.editingField == fieldWidth, 1),
+		m.renderEditableField("Height", m.customHeight, m.editingField == fieldHeight, 2),
+		m.renderEditableField("Zoom %", m.zoomPercent, m.editingField == fieldZoom, 3),
+		m.renderEditableField("Scroll", m.scroll, m.editingField == fieldScroll, 4),
+		m.renderEditableField("Delay", m.delay, m.editingField == fieldDelay, 5),
+		"",
+		helpStyle.Render("  Selecting a preset loads its dimensions. Editing width or height switches to custom when needed."),
+	)
 
 	return strings.Join(lines, "\n")
 }
@@ -795,81 +946,89 @@ func (m model) renderEditableField(label, value string, editing bool, idx int) s
 		cursor = cursorStyle.Render("▸ ")
 	}
 
-	l := labelStyle.Render(label + ":")
-
 	if editing {
-		displayed := value + "█"
-		v := editingValueStyle.Render(displayed)
-		return cursor + l + " " + v
+		return cursor + labelStyle.Render(label+":") + " " + m.renderEditingValue(m.editingField)
 	}
 
 	displayVal := value
-	if displayVal == "" && label == "Directory" {
+	switch {
+	case displayVal == "" && label == "Directory":
 		displayVal = lipgloss.NewStyle().Foreground(dimColor).Render("(current directory)")
-	} else if displayVal == "" {
+	case displayVal == "":
 		displayVal = lipgloss.NewStyle().Foreground(dimColor).Render("(empty)")
 	}
 
 	if m.fieldIndex == idx {
-		v := activeFieldStyle.Render(displayVal)
-		return cursor + l + " " + v
+		return cursor + labelStyle.Render(label+":") + " " + activeFieldStyle.Render(displayVal)
 	}
 
-	v := valueStyle.Render(displayVal)
-	return cursor + l + " " + v
+	return cursor + labelStyle.Render(label+":") + " " + valueStyle.Render(displayVal)
+}
+
+func (m model) renderEditingValue(field fieldID) string {
+	value := []rune(m.valueForField(field))
+	cursor := m.cursorForField(field)
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(value) {
+		cursor = len(value)
+	}
+
+	display := string(value[:cursor]) + cursorStyle.Render("│") + string(value[cursor:])
+	return editingValueStyle.Render(display)
 }
 
 func (m model) renderPresetField() string {
-	name := m.currentPreset()
-
 	if m.presetPicking {
 		var parts []string
-		for i, n := range m.presetNames {
+		for i, name := range m.presetNames {
+			label := m.presetLabel(name)
+			style := lipgloss.NewStyle().Foreground(dimColor).Padding(0, 1)
 			if i == m.presetIndex {
-				parts = append(parts, lipgloss.NewStyle().
-					Foreground(brightColor).
-					Background(primaryColor).
-					Padding(0, 1).
-					Bold(true).
-					Render(n))
-			} else {
-				parts = append(parts, lipgloss.NewStyle().
-					Foreground(dimColor).
-					Padding(0, 1).
-					Render(n))
+				style = style.Foreground(brightColor).Background(primaryColor).Bold(true)
 			}
+			parts = append(parts, style.Render(label))
 		}
 		return lipgloss.JoinHorizontal(lipgloss.Center, parts...)
 	}
 
-	// Not picking: show current with arrows
 	arrow := lipgloss.NewStyle().Foreground(accentColor).Render(" ◂▸")
+	label := m.presetLabel(m.currentPreset())
 	if m.fieldIndex == 0 {
-		return activeFieldStyle.Render(name) + arrow
+		return activeFieldStyle.Render(label) + arrow
 	}
-	return valueStyle.Render(name) + arrow
+	return valueStyle.Render(label) + arrow
 }
 
-// ── Run ────────────────────────────────────────────────────────────────────
+func (m model) presetLabel(name string) string {
+	if name == string(config.PresetCustom) {
+		return fmt.Sprintf("custom (%dx%d)", m.resolutionWidth(), m.resolutionHeight())
+	}
+	width, height, ok := presetDimensions(name)
+	if !ok {
+		return name
+	}
+	return fmt.Sprintf("%s (%dx%d)", name, width, height)
+}
 
-// Run starts the interactive TUI with the given chrome path.
 func Run(chromePath string) error {
 	defaults := config.DefaultConfig()
-
-	presetNames := append(config.PresetNames(), "custom")
+	presetNames := append(config.PresetNames(), string(config.PresetCustom))
 
 	m := model{
-		tabs:      []string{"Generate", "Input", "Output", "Settings"},
-		activeTab: 1, // Start on Input tab
+		tabs:         []string{"Generate", "Input", "Output", "Settings"},
+		activeTab:    1,
+		presetIndex:  0,
 		presetNames:  presetNames,
-		presetIndex:  0, // widescreen
-		url:          "",
 		dir:          defaults.Dir,
 		filename:     defaults.Filename,
-		zoom:         fmt.Sprintf("%g", defaults.Zoom),
-		scroll:       strconv.Itoa(defaults.Scroll),
 		customWidth:  strconv.Itoa(defaults.Width),
 		customHeight: strconv.Itoa(defaults.Height),
+		zoomPercent:  strconv.Itoa(int(math.Round(defaults.Zoom * 100))),
+		scroll:       strconv.Itoa(defaults.Scroll),
+		delay:        formatDurationValue(defaults.Delay),
+		fieldCursors: make(map[fieldID]int),
 		chromePath:   chromePath,
 	}
 

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/UnitVectorY-Labs/gowebshot/internal/config"
 )
@@ -28,6 +29,7 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	height := fs.Int("height", 0, "viewport height in pixels")
 	zoom := fs.Float64("zoom", 1.0, "page zoom level")
 	scroll := fs.Int("scroll", 0, "pixels to scroll before capture")
+	delay := fs.Duration("delay", time.Second, "delay after page load before capture (for example 500ms or 1s)")
 	chrome := fs.String("chrome", "", "path to Chrome executable")
 
 	if err := fs.Parse(args); err != nil {
@@ -68,6 +70,7 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	cfg.Filename = *filename
 	cfg.Zoom = *zoom
 	cfg.Scroll = *scroll
+	cfg.Delay = *delay
 	cfg.ChromePath = *chrome
 
 	return cfg, false, nil

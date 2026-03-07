@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Preset represents a named screen resolution preset.
@@ -46,6 +47,7 @@ type Config struct {
 	Height     int
 	Zoom       float64
 	Scroll     int
+	Delay      time.Duration
 	ChromePath string
 }
 
@@ -57,6 +59,7 @@ func DefaultConfig() Config {
 		Height:   1080,
 		Zoom:     1.0,
 		Scroll:   0,
+		Delay:    time.Second,
 		Filename: "screenshot.png",
 		Dir:      "",
 	}
@@ -90,6 +93,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Scroll < 0 {
 		return fmt.Errorf("scroll must be non-negative")
+	}
+	if c.Delay < 0 {
+		return fmt.Errorf("delay must be non-negative")
 	}
 	if strings.TrimSpace(c.Filename) == "" {
 		return fmt.Errorf("filename is required")

@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -21,6 +22,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.Scroll != 0 {
 		t.Errorf("expected scroll 0, got %d", cfg.Scroll)
+	}
+	if cfg.Delay != time.Second {
+		t.Errorf("expected delay 1s, got %s", cfg.Delay)
 	}
 	if cfg.Filename != "screenshot.png" {
 		t.Errorf("expected filename %q, got %q", "screenshot.png", cfg.Filename)
@@ -138,6 +142,15 @@ func TestValidateScroll(t *testing.T) {
 	cfg.Scroll = -1
 	if err := cfg.Validate(); err == nil || err.Error() != "scroll must be non-negative" {
 		t.Errorf("expected 'scroll must be non-negative', got %v", err)
+	}
+}
+
+func TestValidateDelay(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.URL = "https://example.com"
+	cfg.Delay = -1 * time.Second
+	if err := cfg.Validate(); err == nil || err.Error() != "delay must be non-negative" {
+		t.Errorf("expected 'delay must be non-negative', got %v", err)
 	}
 }
 

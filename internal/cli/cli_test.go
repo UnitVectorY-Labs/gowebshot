@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"testing"
+	"time"
 )
 
 func TestEmptyArgs_InteractiveMode(t *testing.T) {
@@ -68,5 +69,18 @@ func TestHelpReturnsErrHelp(t *testing.T) {
 	_, _, err := ParseFlags([]string{"-h"})
 	if !errors.Is(err, flag.ErrHelp) {
 		t.Fatalf("expected flag.ErrHelp, got %v", err)
+	}
+}
+
+func TestDelayFlag(t *testing.T) {
+	cfg, interactive, err := ParseFlags([]string{"--url", "https://example.com", "--delay", "1500ms"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if interactive {
+		t.Fatal("expected non-interactive mode")
+	}
+	if cfg.Delay != 1500*time.Millisecond {
+		t.Fatalf("expected 1500ms delay, got %s", cfg.Delay)
 	}
 }
