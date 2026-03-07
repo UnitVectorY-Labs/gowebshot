@@ -18,6 +18,16 @@ func ResolvePath(dir, filename string) (string, error) {
 		dir = cwd
 	}
 
+	// Prevent path traversal: filename must not be absolute or escape the dir
+	if filepath.IsAbs(filename) {
+		return "", fmt.Errorf("filename must not be an absolute path")
+	}
+	cleanName := filepath.Clean(filename)
+	if strings.Contains(cleanName, "..") {
+		return "", fmt.Errorf("filename must not contain path traversal sequences")
+	}
+	filename = cleanName
+
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("creating output directory: %w", err)
 	}

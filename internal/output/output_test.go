@@ -116,3 +116,25 @@ func TestWriteFile(t *testing.T) {
 		t.Errorf("expected %q, got %q", data, got)
 	}
 }
+
+func TestResolvePath_RejectsAbsoluteFilename(t *testing.T) {
+	dir := t.TempDir()
+	_, err := ResolvePath(dir, "/etc/evil.png")
+	if err == nil {
+		t.Fatal("expected error for absolute filename")
+	}
+	if !strings.Contains(err.Error(), "absolute path") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestResolvePath_RejectsPathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	_, err := ResolvePath(dir, "../../etc/evil.png")
+	if err == nil {
+		t.Fatal("expected error for path traversal in filename")
+	}
+	if !strings.Contains(err.Error(), "traversal") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
