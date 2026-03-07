@@ -50,9 +50,9 @@ func TestApplyPreset(t *testing.T) {
 		height int
 	}{
 		{PresetWidescreen, 1920, 1080},
-		{PresetDesktop, 1280, 1024},
-		{PresetSquare, 1080, 1080},
-		{PresetPortrait, 1080, 1920},
+		{PresetDesktop, 1440, 900},
+		{PresetSquare, 1200, 1200},
+		{PresetPortrait, 1080, 1350},
 	}
 
 	for _, tt := range tests {

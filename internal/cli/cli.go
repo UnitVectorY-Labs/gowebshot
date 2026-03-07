@@ -4,7 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
+	"os"
 
 	"github.com/UnitVectorY-Labs/gowebshot/internal/config"
 )
@@ -18,7 +18,7 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	}
 
 	fs := flag.NewFlagSet("gowebshot", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+	fs.SetOutput(os.Stderr)
 
 	url := fs.String("url", "", "URL to capture")
 	dir := fs.String("dir", "", "output directory")

@@ -66,5 +66,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Screenshot saved to %s\n", path)
+	fmt.Printf("Screenshot saved to %s\n", path)
 }

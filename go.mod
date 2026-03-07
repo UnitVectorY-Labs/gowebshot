@@ -5,7 +5,7 @@ go 1.26.0 // GOVERSION
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	golang.org/x/net v0.51.0
+	github.com/gorilla/websocket v1.5.3
 )
 
 require (

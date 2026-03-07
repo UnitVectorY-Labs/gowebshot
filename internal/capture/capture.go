@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"time"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	"github.com/UnitVectorY-Labs/gowebshot/internal/config"
 )
@@ -52,11 +52,15 @@ func (s *cdpSender) call(ctx context.Context, method string, params map[string]a
 		Method: method,
 		Params: params,
 	}
-	if err := websocket.JSON.Send(s.ws, msg); err != nil {
+	if err := s.ws.WriteJSON(msg); err != nil {
 		return nil, fmt.Errorf("sending %s: %w", method, err)
 	}
 
 	for {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("context cancelled waiting for %s: %w", method, ctx.Err())
+		}
+
 		if deadline, ok := ctx.Deadline(); ok {
 			if err := s.ws.SetReadDeadline(deadline); err != nil {
 				return nil, fmt.Errorf("setting read deadline: %w", err)
@@ -64,7 +68,7 @@ func (s *cdpSender) call(ctx context.Context, method string, params map[string]a
 		}
 
 		var resp cdpResponse
-		if err := websocket.JSON.Receive(s.ws, &resp); err != nil {
+		if err := s.ws.ReadJSON(&resp); err != nil {
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled waiting for %s: %w", method, ctx.Err())
 			}
@@ -131,7 +135,10 @@ func Capture(cfg config.Config) ([]byte, error) {
 		return nil, err
 	}
 
-	ws, err := websocket.Dial(wsURL, "", "http://127.0.0.1")
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+	}
+	ws, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to CDP WebSocket: %w", err)
 	}

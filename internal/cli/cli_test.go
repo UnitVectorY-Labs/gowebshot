@@ -37,8 +37,8 @@ func TestPresetSquare(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Width != 1080 || cfg.Height != 1080 {
-		t.Fatalf("expected 1080x1080 for square preset, got %dx%d", cfg.Width, cfg.Height)
+	if cfg.Width != 1200 || cfg.Height != 1200 {
+		t.Fatalf("expected 1200x1200 for square preset, got %dx%d", cfg.Width, cfg.Height)
 	}
 }
 

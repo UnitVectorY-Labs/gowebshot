@@ -25,9 +25,9 @@ type presetDimensions struct {
 // Presets maps preset name strings to their width and height.
 var Presets = map[Preset]presetDimensions{
 	PresetWidescreen: {Width: 1920, Height: 1080},
-	PresetDesktop:    {Width: 1280, Height: 1024},
-	PresetSquare:     {Width: 1080, Height: 1080},
-	PresetPortrait:   {Width: 1080, Height: 1920},
+	PresetDesktop:    {Width: 1440, Height: 900},
+	PresetSquare:     {Width: 1200, Height: 1200},
+	PresetPortrait:   {Width: 1080, Height: 1350},
 }
 
 // PresetNames returns the ordered list of available preset names.
