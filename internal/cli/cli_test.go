@@ -20,7 +20,7 @@ func TestEmptyArgs_InteractiveMode(t *testing.T) {
 	}
 }
 
-func TestURLFlag(t *testing.T) {
+func TestURLFlagEnablesNonInteractiveMode(t *testing.T) {
 	cfg, interactive, err := ParseFlags([]string{"--url", "https://example.com"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -30,6 +30,25 @@ func TestURLFlag(t *testing.T) {
 	}
 	if cfg.URL != "https://example.com" {
 		t.Fatalf("expected URL https://example.com, got %s", cfg.URL)
+	}
+}
+
+func TestFlagsWithoutURLRemainInteractive(t *testing.T) {
+	cfg, interactive, err := ParseFlags([]string{"--preset", "square", "--delay", "1500ms"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !interactive {
+		t.Fatal("expected interactive mode when --url is omitted")
+	}
+	if cfg.Preset != "square" {
+		t.Fatalf("expected preset square, got %s", cfg.Preset)
+	}
+	if cfg.Width != 1200 || cfg.Height != 1200 {
+		t.Fatalf("expected 1200x1200 for square preset, got %dx%d", cfg.Width, cfg.Height)
+	}
+	if cfg.Delay != 1500*time.Millisecond {
+		t.Fatalf("expected 1500ms delay, got %s", cfg.Delay)
 	}
 }
 
@@ -82,5 +101,15 @@ func TestDelayFlag(t *testing.T) {
 	}
 	if cfg.Delay != 1500*time.Millisecond {
 		t.Fatalf("expected 1500ms delay, got %s", cfg.Delay)
+	}
+}
+
+func TestExplicitURLFlagKeepsNonInteractiveModeEvenWhenEmpty(t *testing.T) {
+	_, interactive, err := ParseFlags([]string{"--url", ""})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if interactive {
+		t.Fatal("expected non-interactive mode when --url is provided")
 	}
 }

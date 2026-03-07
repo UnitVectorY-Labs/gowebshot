@@ -10,10 +10,16 @@ permalink: /tui
 
 ## Launch
 
-Run `gowebshot` with no arguments to open the interactive terminal UI:
+Run `gowebshot` without `--url` to open the interactive terminal UI:
 
 ```bash
 gowebshot
+```
+
+Any other CLI flags are applied before the TUI opens. For example:
+
+```bash
+gowebshot --preset portrait --filename social-card
 ```
 
 ## Tabs

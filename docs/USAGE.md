@@ -20,8 +20,8 @@ permalink: /usage
 
 gowebshot has two execution modes:
 
-- **Non-interactive mode** — Runs when any CLI flags are provided. Takes a single screenshot and exits.
-- **Interactive TUI mode** — Runs when no arguments are given. Opens a terminal UI for repeated captures. See [TUI](/tui) for the interactive workflow.
+- **Non-interactive mode** — Runs when `--url` is provided. Takes a single screenshot and exits using defaults for any omitted flags.
+- **Interactive TUI mode** — Runs when `--url` is omitted. Any other CLI flags pre-populate the TUI fields before it opens. See [TUI](/tui) for the interactive workflow.
 
 ## Non-Interactive Mode
 
@@ -33,11 +33,17 @@ gowebshot --url https://example.com
 
 This captures a screenshot of the specified URL at the default resolution (1920×1080) and saves it as `screenshot.png` in the current directory.
 
+If you omit `--url`, gowebshot opens the TUI instead. For example, this starts interactive mode with the square preset already selected:
+
+```bash
+gowebshot --preset square --delay 1500ms
+```
+
 ### CLI Flags
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--url` | URL to capture (required) | — |
+| `--url` | URL to capture. Its presence switches gowebshot into non-interactive mode. | — |
 | `--dir` | Output directory | Current directory |
 | `--filename` | Output filename | `screenshot.png` |
 | `--preset` | Resolution preset | `widescreen` |

@@ -35,7 +35,7 @@ func main() {
 
 	if isInteractive {
 		fmt.Fprintln(os.Stderr, "Running in interactive TUI mode...")
-		if err := tui.Run(""); err != nil {
+		if err := tui.Run(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

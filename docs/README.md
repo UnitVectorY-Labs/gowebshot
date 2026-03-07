@@ -7,7 +7,7 @@ permalink: /
 
 # gowebshot
 
-A simple command-line application for capturing screenshots of webpages. gowebshot supports both a non-interactive mode for one-shot captures driven by CLI flags and an interactive terminal UI (TUI) mode for configuring capture settings and generating screenshots repeatedly.
+Simple command line application for capturing screen shots of webpages.
 
 ## Features
 

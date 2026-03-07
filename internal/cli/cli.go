@@ -14,10 +14,6 @@ import (
 // It returns the resolved Config, whether interactive mode should be used,
 // and any error encountered during parsing.
 func ParseFlags(args []string) (config.Config, bool, error) {
-	if len(args) == 0 {
-		return config.DefaultConfig(), true, nil
-	}
-
 	fs := flag.NewFlagSet("gowebshot", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
@@ -38,6 +34,13 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 		}
 		return config.Config{}, false, err
 	}
+
+	urlProvided := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "url" {
+			urlProvided = true
+		}
+	})
 
 	// Validate preset vs explicit dimensions.
 	hasPreset := *preset != ""
@@ -73,5 +76,5 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	cfg.Delay = *delay
 	cfg.ChromePath = *chrome
 
-	return cfg, false, nil
+	return cfg, !urlProvided, nil
 }

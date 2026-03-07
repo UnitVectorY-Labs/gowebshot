@@ -8,16 +8,7 @@ import (
 )
 
 func newTestModel() model {
-	defaults := config.DefaultConfig()
-	return model{
-		presetNames:  append(config.PresetNames(), string(config.PresetCustom)),
-		customWidth:  "1920",
-		customHeight: "1080",
-		zoomPercent:  "100",
-		scroll:       "0",
-		delay:        defaults.Delay.String(),
-		fieldCursors: make(map[fieldID]int),
-	}
+	return newModel(config.DefaultConfig())
 }
 
 func TestEditInsertRespectsCursor(t *testing.T) {
@@ -99,5 +90,50 @@ func TestBuildConfigConvertsZoomPercentAndDelay(t *testing.T) {
 	}
 	if cfg.Delay != 1500*time.Millisecond {
 		t.Fatalf("expected delay 1500ms, got %s", cfg.Delay)
+	}
+}
+
+func TestNewModelPrefillsInteractiveValues(t *testing.T) {
+	initial := config.Config{
+		URL:        "https://example.com",
+		Dir:        "shots",
+		Filename:   "example.png",
+		Preset:     config.PresetCustom,
+		Width:      800,
+		Height:     600,
+		Zoom:       1.25,
+		Scroll:     42,
+		Delay:      1500 * time.Millisecond,
+		ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+	}
+
+	m := newModel(initial)
+
+	if m.url != initial.URL {
+		t.Fatalf("expected URL %q, got %q", initial.URL, m.url)
+	}
+	if m.dir != initial.Dir {
+		t.Fatalf("expected dir %q, got %q", initial.Dir, m.dir)
+	}
+	if m.filename != initial.Filename {
+		t.Fatalf("expected filename %q, got %q", initial.Filename, m.filename)
+	}
+	if m.currentPreset() != string(config.PresetCustom) {
+		t.Fatalf("expected preset %q, got %q", config.PresetCustom, m.currentPreset())
+	}
+	if m.customWidth != "800" || m.customHeight != "600" {
+		t.Fatalf("expected dimensions 800x600, got %sx%s", m.customWidth, m.customHeight)
+	}
+	if m.zoomPercent != "125" {
+		t.Fatalf("expected zoom percent 125, got %q", m.zoomPercent)
+	}
+	if m.scroll != "42" {
+		t.Fatalf("expected scroll 42, got %q", m.scroll)
+	}
+	if m.delay != "1.5s" {
+		t.Fatalf("expected delay 1.5s, got %q", m.delay)
+	}
+	if m.chromePath != initial.ChromePath {
+		t.Fatalf("expected chrome path %q, got %q", initial.ChromePath, m.chromePath)
 	}
 }

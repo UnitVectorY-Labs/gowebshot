@@ -1012,8 +1012,7 @@ func (m model) presetLabel(name string) string {
 	return fmt.Sprintf("%s (%dx%d)", name, width, height)
 }
 
-func Run(chromePath string) error {
-	defaults := config.DefaultConfig()
+func newModel(initial config.Config) model {
 	presetNames := append(config.PresetNames(), string(config.PresetCustom))
 
 	m := model{
@@ -1021,17 +1020,29 @@ func Run(chromePath string) error {
 		activeTab:    1,
 		presetIndex:  0,
 		presetNames:  presetNames,
-		dir:          defaults.Dir,
-		filename:     defaults.Filename,
-		customWidth:  strconv.Itoa(defaults.Width),
-		customHeight: strconv.Itoa(defaults.Height),
-		zoomPercent:  strconv.Itoa(int(math.Round(defaults.Zoom * 100))),
-		scroll:       strconv.Itoa(defaults.Scroll),
-		delay:        formatDurationValue(defaults.Delay),
 		fieldCursors: make(map[fieldID]int),
-		chromePath:   chromePath,
 	}
 
+	m.url = initial.URL
+	m.dir = initial.Dir
+	m.filename = initial.Filename
+	m.customWidth = strconv.Itoa(initial.Width)
+	m.customHeight = strconv.Itoa(initial.Height)
+	m.zoomPercent = strconv.Itoa(int(math.Round(initial.Zoom * 100)))
+	m.scroll = strconv.Itoa(initial.Scroll)
+	m.delay = formatDurationValue(initial.Delay)
+	m.chromePath = initial.ChromePath
+
+	m.setPresetByName(string(initial.Preset))
+	if initial.Preset == "" || m.currentPreset() != string(initial.Preset) {
+		m.syncPresetFromDimensions()
+	}
+
+	return m
+}
+
+func Run(initial config.Config) error {
+	m := newModel(initial)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
