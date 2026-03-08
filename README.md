@@ -1,3 +1,6 @@
+[![GitHub release](https://img.shields.io/github/release/UnitVectorY-Labs/gowebshot.svg)](https://github.com/UnitVectorY-Labs/gowebshot/releases/latest) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Active](https://img.shields.io/badge/Status-Active-green)](https://guide.unitvectorylabs.com/bestpractices/status/#active)
+ [![Go Report Card](https://goreportcard.com/badge/github.com/UnitVectorY-Labs/gowebshot)](https://goreportcard.com/report/github.com/UnitVectorY-Labs/gowebshot)
+ 
 # gowebshot
 
 Simple command line application for capturing screen shots of webpages.
