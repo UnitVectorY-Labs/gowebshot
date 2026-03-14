@@ -1,6 +1,6 @@
 module github.com/UnitVectorY-Labs/gowebshot
 
-go 1.26.0 // GOVERSION
+go 1.26 // GOVERSION
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
