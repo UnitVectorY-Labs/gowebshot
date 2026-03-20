@@ -71,6 +71,13 @@ func TestAdjustEditingValueClampsNumericFields(t *testing.T) {
 	if got := m.delay; got != "0s" {
 		t.Fatalf("expected delay to clamp at 0s, got %q", got)
 	}
+
+	m.editingField = fieldCropTop
+	m.cropTop = "0"
+	m.adjustEditingValue(-1)
+	if got := m.cropTop; got != "0" {
+		t.Fatalf("expected crop top to clamp at 0, got %q", got)
+	}
 }
 
 func TestBuildConfigConvertsZoomPercentAndDelay(t *testing.T) {
@@ -79,6 +86,11 @@ func TestBuildConfigConvertsZoomPercentAndDelay(t *testing.T) {
 	m.zoomPercent = "125"
 	m.scroll = "12"
 	m.delay = "1500ms"
+	m.cropTop = "10"
+	m.cropBottom = "20"
+	m.cropLeft = "30"
+	m.cropRight = "40"
+	m.shift = true
 
 	cfg := m.buildConfig()
 
@@ -90,6 +102,12 @@ func TestBuildConfigConvertsZoomPercentAndDelay(t *testing.T) {
 	}
 	if cfg.Delay != 1500*time.Millisecond {
 		t.Fatalf("expected delay 1500ms, got %s", cfg.Delay)
+	}
+	if cfg.Crop != (config.Crop{Top: 10, Bottom: 20, Left: 30, Right: 40}) {
+		t.Fatalf("unexpected crop: %+v", cfg.Crop)
+	}
+	if !cfg.Shift {
+		t.Fatal("expected shift to be enabled")
 	}
 }
 
@@ -103,6 +121,8 @@ func TestNewModelPrefillsInteractiveValues(t *testing.T) {
 		Height:     600,
 		Zoom:       1.25,
 		Scroll:     42,
+		Crop:       config.Crop{Top: 10, Bottom: 20, Left: 30, Right: 40},
+		Shift:      true,
 		Delay:      1500 * time.Millisecond,
 		ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 	}
@@ -129,6 +149,12 @@ func TestNewModelPrefillsInteractiveValues(t *testing.T) {
 	}
 	if m.scroll != "42" {
 		t.Fatalf("expected scroll 42, got %q", m.scroll)
+	}
+	if m.cropTop != "10" || m.cropBottom != "20" || m.cropLeft != "30" || m.cropRight != "40" {
+		t.Fatalf("unexpected crop values %q %q %q %q", m.cropTop, m.cropBottom, m.cropLeft, m.cropRight)
+	}
+	if !m.shift {
+		t.Fatal("expected shift to be enabled")
 	}
 	if m.delay != "1.5s" {
 		t.Fatalf("expected delay 1.5s, got %q", m.delay)

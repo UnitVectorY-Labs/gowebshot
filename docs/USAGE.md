@@ -51,8 +51,12 @@ gowebshot --preset square --delay 1500ms
 | `--height` | Custom viewport height (requires `--width`) | — |
 | `--zoom` | Page zoom factor | `1.0` |
 | `--scroll` | Vertical scroll in pixels | `0` |
+| `--crop` | Crop pixels in `top,bottom,left,right` order | `0,0,0,0` |
+| `--shift` | Increase capture size so cropping keeps the requested output dimensions. Requires a non-zero `--crop`. | `false` |
 | `--delay` | Delay after page load before capture | `1s` |
 | `--chrome` | Explicit path to Chrome/Chromium | Auto-discover |
+
+`--crop` removes pixels from the screenshot after capture. Without `--shift`, the final image becomes smaller by the amount you crop away. With `--shift`, gowebshot captures a larger viewport first and then crops it back down so the resulting PNG still matches the width and height you requested.
 
 ### Resolution Presets
 
@@ -81,6 +85,18 @@ Capture with zoom and scroll:
 
 ```bash
 gowebshot --url https://example.com --zoom 1.5 --scroll 200
+```
+
+Crop a sticky header off the top:
+
+```bash
+gowebshot --url https://example.com --width 1200 --height 800 --crop 120,0,0,0
+```
+
+Crop a sticky header while keeping the final image at 1200×800:
+
+```bash
+gowebshot --url https://example.com --width 1200 --height 800 --crop 120,0,0,0 --shift
 ```
 
 Capture after letting the page settle for 2 seconds:

@@ -29,7 +29,7 @@ The TUI provides four tabs:
 - **Generate** — Shows a summary of the current configuration and a button to trigger capture.
 - **Input** — Edit the URL to capture.
 - **Output** — Edit the output directory and filename.
-- **Settings** — Choose a preset, edit width and height, set zoom percentage, scroll offset, and the capture delay.
+- **Settings** — Choose a preset, edit width and height, set zoom percentage, scroll offset, crop each edge, optionally enable shift, and set the capture delay.
 
 ## Settings
 
@@ -37,6 +37,8 @@ The TUI provides four tabs:
 - **Width / Height** — Always editable. Selecting a preset loads its dimensions; changing them manually switches the preset to `custom` unless they match a named preset exactly.
 - **Zoom %** — Stored as a percentage in the TUI. While editing, `↑` and `↓` adjust it by 1%.
 - **Scroll** — Stored in pixels. While editing, `↑` and `↓` adjust it by 1px and never allow negative values.
+- **Crop Top / Bottom / Left / Right** — Pixels to trim from each edge after the screenshot is taken. While editing, `↑` and `↓` adjust them by 1px and never allow negative values.
+- **Shift** — When enabled, gowebshot captures a larger viewport first so the final cropped PNG keeps the requested width and height.
 - **Delay** — Wait time after page load and adjustments before capture. Default is `1s`.
 
 ## Keyboard Controls

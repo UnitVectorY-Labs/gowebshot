@@ -1,10 +1,14 @@
 package capture
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/png"
 	"io"
 	"net"
 	"net/http"
@@ -99,6 +103,9 @@ func Capture(cfg config.Config) ([]byte, error) {
 		return nil, fmt.Errorf("finding free port: %w", err)
 	}
 
+	captureWidth := cfg.CaptureWidth()
+	captureHeight := cfg.CaptureHeight()
+
 	cmd := exec.Command(chromePath,
 		"--headless",
 		"--disable-gpu",
@@ -107,7 +114,7 @@ func Capture(cfg config.Config) ([]byte, error) {
 		"--disable-dev-shm-usage",
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		fmt.Sprintf("--user-data-dir=%s", tmpDir),
-		fmt.Sprintf("--window-size=%d,%d", cfg.Width, cfg.Height),
+		fmt.Sprintf("--window-size=%d,%d", captureWidth, captureHeight),
 	)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting Chrome: %w", err)
@@ -150,8 +157,8 @@ func Capture(cfg config.Config) ([]byte, error) {
 	}
 
 	if _, err := send.call(ctx, "Emulation.setDeviceMetricsOverride", map[string]any{
-		"width":             cfg.Width,
-		"height":            cfg.Height,
+		"width":             captureWidth,
+		"height":            captureHeight,
 		"deviceScaleFactor": 1,
 		"mobile":            false,
 	}); err != nil {
@@ -210,7 +217,48 @@ func Capture(cfg config.Config) ([]byte, error) {
 		return nil, fmt.Errorf("decoding screenshot data: %w", err)
 	}
 
+	pngBytes, err = cropPNG(pngBytes, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return pngBytes, nil
+}
+
+func cropPNG(pngBytes []byte, cfg config.Config) ([]byte, error) {
+	if cfg.Crop.IsZero() {
+		return pngBytes, nil
+	}
+
+	src, err := png.Decode(bytes.NewReader(pngBytes))
+	if err != nil {
+		return nil, fmt.Errorf("decoding PNG for crop: %w", err)
+	}
+
+	bounds := src.Bounds()
+	cropRect := image.Rect(
+		bounds.Min.X+cfg.Crop.Left,
+		bounds.Min.Y+cfg.Crop.Top,
+		bounds.Max.X-cfg.Crop.Right,
+		bounds.Max.Y-cfg.Crop.Bottom,
+	)
+
+	if cropRect.Empty() {
+		return nil, fmt.Errorf("crop removed the entire image")
+	}
+	if !cropRect.In(bounds) {
+		return nil, fmt.Errorf("crop exceeded screenshot bounds")
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, cropRect.Dx(), cropRect.Dy()))
+	draw.Draw(dst, dst.Bounds(), src, cropRect.Min, draw.Src)
+
+	var out bytes.Buffer
+	if err := png.Encode(&out, dst); err != nil {
+		return nil, fmt.Errorf("encoding cropped PNG: %w", err)
+	}
+
+	return out.Bytes(), nil
 }
 
 // freePort asks the OS for an available TCP port on the loopback interface.

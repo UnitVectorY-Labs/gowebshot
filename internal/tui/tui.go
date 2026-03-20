@@ -33,6 +33,11 @@ const (
 	fieldZoom
 	fieldScroll
 	fieldDelay
+	fieldCropTop
+	fieldCropBottom
+	fieldCropLeft
+	fieldCropRight
+	fieldShift
 )
 
 const delayStep = 100 * time.Millisecond
@@ -56,6 +61,11 @@ type model struct {
 	zoomPercent  string
 	scroll       string
 	delay        string
+	cropTop      string
+	cropBottom   string
+	cropLeft     string
+	cropRight    string
+	shift        bool
 
 	editingField fieldID
 	fieldCursors map[fieldID]int
@@ -219,7 +229,7 @@ func (m model) fieldCountForTab() int {
 	case 2:
 		return 2
 	case 3:
-		return 6
+		return 11
 	default:
 		return 0
 	}
@@ -243,15 +253,39 @@ func (m model) buildConfig() config.Config {
 		delay = 0
 	}
 
+	cropTop := parseIntOrDefault(m.cropTop, defaults.Crop.Top)
+	if cropTop < 0 {
+		cropTop = 0
+	}
+	cropBottom := parseIntOrDefault(m.cropBottom, defaults.Crop.Bottom)
+	if cropBottom < 0 {
+		cropBottom = 0
+	}
+	cropLeft := parseIntOrDefault(m.cropLeft, defaults.Crop.Left)
+	if cropLeft < 0 {
+		cropLeft = 0
+	}
+	cropRight := parseIntOrDefault(m.cropRight, defaults.Crop.Right)
+	if cropRight < 0 {
+		cropRight = 0
+	}
+
 	cfg := config.Config{
-		URL:        m.url,
-		Dir:        m.dir,
-		Filename:   m.filename,
-		Preset:     config.Preset(m.currentPreset()),
-		Width:      m.resolutionWidth(),
-		Height:     m.resolutionHeight(),
-		Zoom:       float64(zoomPercent) / 100,
-		Scroll:     scroll,
+		URL:      m.url,
+		Dir:      m.dir,
+		Filename: m.filename,
+		Preset:   config.Preset(m.currentPreset()),
+		Width:    m.resolutionWidth(),
+		Height:   m.resolutionHeight(),
+		Zoom:     float64(zoomPercent) / 100,
+		Scroll:   scroll,
+		Crop: config.Crop{
+			Top:    cropTop,
+			Bottom: cropBottom,
+			Left:   cropLeft,
+			Right:  cropRight,
+		},
+		Shift:      m.shift,
 		Delay:      delay,
 		ChromePath: m.chromePath,
 	}
@@ -271,6 +305,8 @@ func (m model) isEditing() bool {
 func isNumericField(field fieldID) bool {
 	switch field {
 	case fieldWidth, fieldHeight, fieldZoom, fieldScroll, fieldDelay:
+		return true
+	case fieldCropTop, fieldCropBottom, fieldCropLeft, fieldCropRight:
 		return true
 	default:
 		return false
@@ -473,6 +509,16 @@ func (m model) activateField() (tea.Model, tea.Cmd) {
 			m.startEditing(fieldScroll)
 		case 5:
 			m.startEditing(fieldDelay)
+		case 6:
+			m.startEditing(fieldCropTop)
+		case 7:
+			m.startEditing(fieldCropBottom)
+		case 8:
+			m.startEditing(fieldCropLeft)
+		case 9:
+			m.startEditing(fieldCropRight)
+		case 10:
+			m.shift = !m.shift
 		}
 	}
 	return m, nil
@@ -508,6 +554,12 @@ func (m model) triggerCapture() (tea.Model, tea.Cmd) {
 		case strings.Contains(errMsg, "delay"):
 			m.activeTab = 3
 			m.fieldIndex = 5
+		case strings.Contains(errMsg, "crop"):
+			m.activeTab = 3
+			m.fieldIndex = 6
+		case strings.Contains(errMsg, "shift"):
+			m.activeTab = 3
+			m.fieldIndex = 10
 		}
 		return m, nil
 	}
@@ -596,6 +648,14 @@ func (m model) valueForField(field fieldID) string {
 		return m.scroll
 	case fieldDelay:
 		return m.delay
+	case fieldCropTop:
+		return m.cropTop
+	case fieldCropBottom:
+		return m.cropBottom
+	case fieldCropLeft:
+		return m.cropLeft
+	case fieldCropRight:
+		return m.cropRight
 	default:
 		return ""
 	}
@@ -619,6 +679,14 @@ func (m *model) setValueForField(field fieldID, value string) {
 		m.scroll = value
 	case fieldDelay:
 		m.delay = value
+	case fieldCropTop:
+		m.cropTop = value
+	case fieldCropBottom:
+		m.cropBottom = value
+	case fieldCropLeft:
+		m.cropLeft = value
+	case fieldCropRight:
+		m.cropRight = value
 	}
 }
 
@@ -765,6 +833,38 @@ func (m *model) adjustEditingValue(step int) {
 		}
 		m.delay = formatDurationValue(delay)
 		m.moveCursorToEnd()
+	case fieldCropTop:
+		cropTop := parseIntOrDefault(m.cropTop, 0)
+		cropTop += step
+		if cropTop < 0 {
+			cropTop = 0
+		}
+		m.cropTop = strconv.Itoa(cropTop)
+		m.moveCursorToEnd()
+	case fieldCropBottom:
+		cropBottom := parseIntOrDefault(m.cropBottom, 0)
+		cropBottom += step
+		if cropBottom < 0 {
+			cropBottom = 0
+		}
+		m.cropBottom = strconv.Itoa(cropBottom)
+		m.moveCursorToEnd()
+	case fieldCropLeft:
+		cropLeft := parseIntOrDefault(m.cropLeft, 0)
+		cropLeft += step
+		if cropLeft < 0 {
+			cropLeft = 0
+		}
+		m.cropLeft = strconv.Itoa(cropLeft)
+		m.moveCursorToEnd()
+	case fieldCropRight:
+		cropRight := parseIntOrDefault(m.cropRight, 0)
+		cropRight += step
+		if cropRight < 0 {
+			cropRight = 0
+		}
+		m.cropRight = strconv.Itoa(cropRight)
+		m.moveCursorToEnd()
 	}
 }
 
@@ -883,6 +983,8 @@ func (m model) viewGenerate() string {
 		renderReadOnlyField("Height", fmt.Sprintf("%d px", m.resolutionHeight())),
 		renderReadOnlyField("Zoom", m.zoomPercent+"%"),
 		renderReadOnlyField("Scroll", m.scroll+"px"),
+		renderReadOnlyField("Crop", m.cropSummary()),
+		renderReadOnlyField("Shift", m.enabledLabel(m.shift)),
 		renderReadOnlyField("Delay", m.delay),
 		"",
 	)
@@ -933,8 +1035,14 @@ func (m model) viewSettings() string {
 		m.renderEditableField("Zoom %", m.zoomPercent, m.editingField == fieldZoom, 3),
 		m.renderEditableField("Scroll", m.scroll, m.editingField == fieldScroll, 4),
 		m.renderEditableField("Delay", m.delay, m.editingField == fieldDelay, 5),
+		m.renderEditableField("Crop Top", m.cropTop, m.editingField == fieldCropTop, 6),
+		m.renderEditableField("Crop Bottom", m.cropBottom, m.editingField == fieldCropBottom, 7),
+		m.renderEditableField("Crop Left", m.cropLeft, m.editingField == fieldCropLeft, 8),
+		m.renderEditableField("Crop Right", m.cropRight, m.editingField == fieldCropRight, 9),
+		m.renderToggleField("Shift", m.shift, 10),
 		"",
 		helpStyle.Render("  Selecting a preset loads its dimensions. Editing width or height switches to custom when needed."),
+		helpStyle.Render("  Crop values are pixels removed after capture. Enable Shift to keep the requested output size."),
 	)
 
 	return strings.Join(lines, "\n")
@@ -977,6 +1085,31 @@ func (m model) renderEditingValue(field fieldID) string {
 
 	display := string(value[:cursor]) + cursorStyle.Render("│") + string(value[cursor:])
 	return editingValueStyle.Render(display)
+}
+
+func (m model) renderToggleField(label string, enabled bool, idx int) string {
+	cursor := "  "
+	if m.fieldIndex == idx && !m.isEditing() && !m.presetPicking {
+		cursor = cursorStyle.Render("▸ ")
+	}
+
+	value := m.enabledLabel(enabled)
+	if m.fieldIndex == idx {
+		return cursor + labelStyle.Render(label+":") + " " + activeFieldStyle.Render(value)
+	}
+
+	return cursor + labelStyle.Render(label+":") + " " + valueStyle.Render(value)
+}
+
+func (m model) enabledLabel(enabled bool) string {
+	if enabled {
+		return "on"
+	}
+	return "off"
+}
+
+func (m model) cropSummary() string {
+	return fmt.Sprintf("top %spx, bottom %spx, left %spx, right %spx", m.cropTop, m.cropBottom, m.cropLeft, m.cropRight)
 }
 
 func (m model) renderPresetField() string {
@@ -1031,6 +1164,11 @@ func newModel(initial config.Config) model {
 	m.zoomPercent = strconv.Itoa(int(math.Round(initial.Zoom * 100)))
 	m.scroll = strconv.Itoa(initial.Scroll)
 	m.delay = formatDurationValue(initial.Delay)
+	m.cropTop = strconv.Itoa(initial.Crop.Top)
+	m.cropBottom = strconv.Itoa(initial.Crop.Bottom)
+	m.cropLeft = strconv.Itoa(initial.Crop.Left)
+	m.cropRight = strconv.Itoa(initial.Crop.Right)
+	m.shift = initial.Shift
 	m.chromePath = initial.ChromePath
 
 	m.setPresetByName(string(initial.Preset))

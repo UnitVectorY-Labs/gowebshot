@@ -5,6 +5,8 @@ import (
 	"flag"
 	"testing"
 	"time"
+
+	"github.com/UnitVectorY-Labs/gowebshot/internal/config"
 )
 
 func TestEmptyArgs_InteractiveMode(t *testing.T) {
@@ -111,5 +113,35 @@ func TestExplicitURLFlagKeepsNonInteractiveModeEvenWhenEmpty(t *testing.T) {
 	}
 	if interactive {
 		t.Fatal("expected non-interactive mode when --url is provided")
+	}
+}
+
+func TestCropAndShiftFlags(t *testing.T) {
+	cfg, interactive, err := ParseFlags([]string{
+		"--url", "https://example.com",
+		"--crop", "10,20,30,40",
+		"--shift",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if interactive {
+		t.Fatal("expected non-interactive mode")
+	}
+	if cfg.Crop != (config.Crop{Top: 10, Bottom: 20, Left: 30, Right: 40}) {
+		t.Fatalf("unexpected crop: %+v", cfg.Crop)
+	}
+	if !cfg.Shift {
+		t.Fatal("expected shift to be enabled")
+	}
+}
+
+func TestCropFlagValidation(t *testing.T) {
+	_, _, err := ParseFlags([]string{"--url", "https://example.com", "--crop", "10,20,30"})
+	if err == nil {
+		t.Fatal("expected crop parsing error")
+	}
+	if err.Error() != "crop must be in top,bottom,left,right format" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -25,6 +25,8 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	height := fs.Int("height", 0, "viewport height in pixels")
 	zoom := fs.Float64("zoom", 1.0, "page zoom level")
 	scroll := fs.Int("scroll", 0, "pixels to scroll before capture")
+	crop := fs.String("crop", "", "crop pixels as top,bottom,left,right")
+	shift := fs.Bool("shift", false, "expand the capture area so crop keeps the requested output size")
 	delay := fs.Duration("delay", time.Second, "delay after page load before capture (for example 500ms or 1s)")
 	chrome := fs.String("chrome", "", "path to Chrome executable")
 
@@ -73,6 +75,14 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	cfg.Filename = *filename
 	cfg.Zoom = *zoom
 	cfg.Scroll = *scroll
+	if *crop != "" {
+		parsedCrop, err := config.ParseCrop(*crop)
+		if err != nil {
+			return config.Config{}, false, err
+		}
+		cfg.Crop = parsedCrop
+	}
+	cfg.Shift = *shift
 	cfg.Delay = *delay
 	cfg.ChromePath = *chrome
 
