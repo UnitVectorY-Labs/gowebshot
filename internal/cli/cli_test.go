@@ -10,9 +10,12 @@ import (
 )
 
 func TestEmptyArgs_InteractiveMode(t *testing.T) {
-	cfg, interactive, err := ParseFlags([]string{})
+	cfg, interactive, showVersion, err := ParseFlags([]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if !interactive {
 		t.Fatal("expected interactive mode for empty args")
@@ -23,9 +26,12 @@ func TestEmptyArgs_InteractiveMode(t *testing.T) {
 }
 
 func TestURLFlagEnablesNonInteractiveMode(t *testing.T) {
-	cfg, interactive, err := ParseFlags([]string{"--url", "https://example.com"})
+	cfg, interactive, showVersion, err := ParseFlags([]string{"--url", "https://example.com"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if interactive {
 		t.Fatal("expected non-interactive mode")
@@ -36,9 +42,12 @@ func TestURLFlagEnablesNonInteractiveMode(t *testing.T) {
 }
 
 func TestFlagsWithoutURLRemainInteractive(t *testing.T) {
-	cfg, interactive, err := ParseFlags([]string{"--preset", "square", "--delay", "1500ms"})
+	cfg, interactive, showVersion, err := ParseFlags([]string{"--preset", "square", "--delay", "1500ms"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if !interactive {
 		t.Fatal("expected interactive mode when --url is omitted")
@@ -55,9 +64,12 @@ func TestFlagsWithoutURLRemainInteractive(t *testing.T) {
 }
 
 func TestPresetSquare(t *testing.T) {
-	cfg, _, err := ParseFlags([]string{"--preset", "square"})
+	cfg, _, showVersion, err := ParseFlags([]string{"--preset", "square"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if cfg.Width != 1200 || cfg.Height != 1200 {
 		t.Fatalf("expected 1200x1200 for square preset, got %dx%d", cfg.Width, cfg.Height)
@@ -65,7 +77,7 @@ func TestPresetSquare(t *testing.T) {
 }
 
 func TestPresetWithWidthErrors(t *testing.T) {
-	_, _, err := ParseFlags([]string{"--preset", "square", "--width", "800"})
+	_, _, _, err := ParseFlags([]string{"--preset", "square", "--width", "800"})
 	if err == nil {
 		t.Fatal("expected error when using --preset with --width")
 	}
@@ -76,7 +88,7 @@ func TestPresetWithWidthErrors(t *testing.T) {
 }
 
 func TestWidthWithoutHeightErrors(t *testing.T) {
-	_, _, err := ParseFlags([]string{"--width", "800"})
+	_, _, _, err := ParseFlags([]string{"--width", "800"})
 	if err == nil {
 		t.Fatal("expected error when using --width without --height")
 	}
@@ -87,16 +99,19 @@ func TestWidthWithoutHeightErrors(t *testing.T) {
 }
 
 func TestHelpReturnsErrHelp(t *testing.T) {
-	_, _, err := ParseFlags([]string{"-h"})
+	_, _, _, err := ParseFlags([]string{"-h"})
 	if !errors.Is(err, flag.ErrHelp) {
 		t.Fatalf("expected flag.ErrHelp, got %v", err)
 	}
 }
 
 func TestDelayFlag(t *testing.T) {
-	cfg, interactive, err := ParseFlags([]string{"--url", "https://example.com", "--delay", "1500ms"})
+	cfg, interactive, showVersion, err := ParseFlags([]string{"--url", "https://example.com", "--delay", "1500ms"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if interactive {
 		t.Fatal("expected non-interactive mode")
@@ -107,9 +122,12 @@ func TestDelayFlag(t *testing.T) {
 }
 
 func TestExplicitURLFlagKeepsNonInteractiveModeEvenWhenEmpty(t *testing.T) {
-	_, interactive, err := ParseFlags([]string{"--url", ""})
+	_, interactive, showVersion, err := ParseFlags([]string{"--url", ""})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if interactive {
 		t.Fatal("expected non-interactive mode when --url is provided")
@@ -117,13 +135,16 @@ func TestExplicitURLFlagKeepsNonInteractiveModeEvenWhenEmpty(t *testing.T) {
 }
 
 func TestCropAndShiftFlags(t *testing.T) {
-	cfg, interactive, err := ParseFlags([]string{
+	cfg, interactive, showVersion, err := ParseFlags([]string{
 		"--url", "https://example.com",
 		"--crop", "10,20,30,40",
 		"--shift",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if showVersion {
+		t.Fatal("expected showVersion to be false")
 	}
 	if interactive {
 		t.Fatal("expected non-interactive mode")
@@ -137,11 +158,24 @@ func TestCropAndShiftFlags(t *testing.T) {
 }
 
 func TestCropFlagValidation(t *testing.T) {
-	_, _, err := ParseFlags([]string{"--url", "https://example.com", "--crop", "10,20,30"})
+	_, _, _, err := ParseFlags([]string{"--url", "https://example.com", "--crop", "10,20,30"})
 	if err == nil {
 		t.Fatal("expected crop parsing error")
 	}
 	if err.Error() != "crop must be in top,bottom,left,right format" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestVersionFlagReturnsShowVersion(t *testing.T) {
+	_, interactive, showVersion, err := ParseFlags([]string{"--version"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if interactive {
+		t.Fatal("expected interactive mode to be false when showing version")
+	}
+	if !showVersion {
+		t.Fatal("expected showVersion to be true")
 	}
 }

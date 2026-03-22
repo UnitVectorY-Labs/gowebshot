@@ -24,13 +24,17 @@ func main() {
 		}
 	}
 
-	cfg, isInteractive, err := cli.ParseFlags(os.Args[1:])
+	cfg, isInteractive, showVersion, err := cli.ParseFlags(os.Args[1:])
 	if err != nil {
 		if err == flag.ErrHelp {
 			os.Exit(0)
 		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+	if showVersion {
+		fmt.Println(Version)
+		return
 	}
 
 	if isInteractive {
