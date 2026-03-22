@@ -12,8 +12,8 @@ import (
 
 // ParseFlags parses command-line flags from args (typically os.Args[1:]).
 // It returns the resolved Config, whether interactive mode should be used,
-// and any error encountered during parsing.
-func ParseFlags(args []string) (config.Config, bool, error) {
+// whether the version should be printed, and any error encountered during parsing.
+func ParseFlags(args []string) (config.Config, bool, bool, error) {
 	fs := flag.NewFlagSet("gowebshot", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
@@ -29,12 +29,17 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	shift := fs.Bool("shift", false, "expand the capture area so crop keeps the requested output size")
 	delay := fs.Duration("delay", time.Second, "delay after page load before capture (for example 500ms or 1s)")
 	chrome := fs.String("chrome", "", "path to Chrome executable")
+	version := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return config.Config{}, false, flag.ErrHelp
+			return config.Config{}, false, false, flag.ErrHelp
 		}
-		return config.Config{}, false, err
+		return config.Config{}, false, false, err
+	}
+
+	if *version {
+		return config.Config{}, false, true, nil
 	}
 
 	urlProvided := false
@@ -50,17 +55,17 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	hasHeight := *height != 0
 
 	if hasPreset && (hasWidth || hasHeight) {
-		return config.Config{}, false, fmt.Errorf("cannot use --preset with --width/--height")
+		return config.Config{}, false, false, fmt.Errorf("cannot use --preset with --width/--height")
 	}
 	if hasWidth != hasHeight {
-		return config.Config{}, false, fmt.Errorf("--width and --height must be used together")
+		return config.Config{}, false, false, fmt.Errorf("--width and --height must be used together")
 	}
 
 	cfg := config.DefaultConfig()
 
 	if hasPreset {
 		if err := cfg.ApplyPreset(config.Preset(*preset)); err != nil {
-			return config.Config{}, false, err
+			return config.Config{}, false, false, err
 		}
 	}
 
@@ -78,7 +83,7 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	if *crop != "" {
 		parsedCrop, err := config.ParseCrop(*crop)
 		if err != nil {
-			return config.Config{}, false, err
+			return config.Config{}, false, false, err
 		}
 		cfg.Crop = parsedCrop
 	}
@@ -86,5 +91,5 @@ func ParseFlags(args []string) (config.Config, bool, error) {
 	cfg.Delay = *delay
 	cfg.ChromePath = *chrome
 
-	return cfg, !urlProvided, nil
+	return cfg, !urlProvided, false, nil
 }

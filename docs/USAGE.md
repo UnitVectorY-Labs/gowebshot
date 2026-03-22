@@ -39,6 +39,12 @@ If you omit `--url`, gowebshot opens the TUI instead. For example, this starts i
 gowebshot --preset square --delay 1500ms
 ```
 
+Print the application version and exit:
+
+```bash
+gowebshot --version
+```
+
 ### CLI Flags
 
 | Flag | Description | Default |
@@ -55,6 +61,7 @@ gowebshot --preset square --delay 1500ms
 | `--shift` | Increase capture size so cropping keeps the requested output dimensions. Requires a non-zero `--crop`. | `false` |
 | `--delay` | Delay after page load before capture | `1s` |
 | `--chrome` | Explicit path to Chrome/Chromium | Auto-discover |
+| `--version` | Print the application version and exit | `false` |
 
 `--crop` removes pixels from the screenshot after capture. Without `--shift`, the final image becomes smaller by the amount you crop away. With `--shift`, gowebshot captures a larger viewport first and then crops it back down so the resulting PNG still matches the width and height you requested.
 
