@@ -1,13 +1,12 @@
 
-# List all available commands
+# Commands for gowebshot
 default:
   @just --list
-
-# Build the Go application
+# Build gowebshot with Go
 build:
   go build ./...
 
-# Run the Go tests
+# Run tests for gowebshot with Go
 test:
   go clean -testcache
   go test ./...

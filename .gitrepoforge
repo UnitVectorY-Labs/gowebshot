@@ -1,0 +1,12 @@
+name: gowebshot
+default_branch: main
+config:
+  description: "Simple command line application for capturing screen shots of webpages."
+  license: MIT
+  language: go
+  release: release-go
+  justfile: true
+  codecov: false
+  docs:
+    enabled: true
+    domain: gowebshot.unitvectorylabs.com
