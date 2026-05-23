@@ -50,3 +50,12 @@ func TestBuildVersionOutput_BuildMetadata(t *testing.T) {
 		t.Fatalf("unexpected version output: got %q, want %q", got, want)
 	}
 }
+
+func TestBuildVersionOutput_EmptyVersion(t *testing.T) {
+	got := buildVersionOutput("gowebshot", "")
+	want := fmt.Sprintf("gowebshot version  (%s, %s/%s)", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+
+	if got != want {
+		t.Fatalf("unexpected version output: got %q, want %q", got, want)
+	}
+}
