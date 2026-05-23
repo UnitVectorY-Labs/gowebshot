@@ -45,6 +45,12 @@ Print the application version and exit:
 gowebshot --version
 ```
 
+Version output format:
+
+```text
+gowebshot version vX.Y.Z (goX.Y, os/arch)
+```
+
 ### CLI Flags
 
 | Flag | Description | Default |

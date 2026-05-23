@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
+	"runtime"
 	"runtime/debug"
+	"strings"
 
 	"github.com/UnitVectorY-Labs/gowebshot/internal/capture"
 	"github.com/UnitVectorY-Labs/gowebshot/internal/cli"
@@ -13,6 +16,22 @@ import (
 )
 
 var Version = "dev" // This will be set by the build systems to the release version
+var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+`)
+
+func buildVersionOutput(projectName, version string) string {
+	normalized := version
+	if semverRe.MatchString(normalized) && !strings.HasPrefix(normalized, "v") {
+		normalized = "v" + normalized
+	}
+	return fmt.Sprintf(
+		"%s version %s (%s, %s/%s)",
+		projectName,
+		normalized,
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+	)
+}
 
 func main() {
 	// Set the build version from the build info if not set by the build system
@@ -33,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 	if showVersion {
-		fmt.Println(Version)
+		fmt.Println(buildVersionOutput("gowebshot", Version))
 		return
 	}
 
