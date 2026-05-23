@@ -16,11 +16,11 @@ import (
 )
 
 var Version = "dev" // This will be set by the build systems to the release version
-var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+`)
+var semverRegex = regexp.MustCompile(`^\d+\.\d+\.\d+([-.].*)?$`)
 
 func buildVersionOutput(projectName, version string) string {
 	normalized := version
-	if semverRe.MatchString(normalized) && !strings.HasPrefix(normalized, "v") {
+	if semverRegex.MatchString(normalized) && !strings.HasPrefix(normalized, "v") {
 		normalized = "v" + normalized
 	}
 	return fmt.Sprintf(
