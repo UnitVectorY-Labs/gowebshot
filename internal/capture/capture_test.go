@@ -12,8 +12,8 @@ import (
 
 func TestCropPNG(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 6, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 6; x++ {
+	for y := range 4 {
+		for x := range 6 {
 			src.Set(x, y, color.RGBA{R: uint8(x * 10), G: uint8(y * 20), B: 200, A: 255})
 		}
 	}
