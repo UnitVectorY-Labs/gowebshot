@@ -238,37 +238,16 @@ func (m model) fieldCountForTab() int {
 func (m model) buildConfig() config.Config {
 	defaults := config.DefaultConfig()
 
-	zoomPercent := parseIntOrDefault(m.zoomPercent, int(math.Round(defaults.Zoom*100)))
-	if zoomPercent < 1 {
-		zoomPercent = 1
-	}
+	zoomPercent := max(parseIntOrDefault(m.zoomPercent, int(math.Round(defaults.Zoom*100))), 1)
 
-	scroll := parseIntOrDefault(m.scroll, defaults.Scroll)
-	if scroll < 0 {
-		scroll = 0
-	}
+	scroll := max(parseIntOrDefault(m.scroll, defaults.Scroll), 0)
 
-	delay := parseDurationOrDefault(m.delay, defaults.Delay)
-	if delay < 0 {
-		delay = 0
-	}
+	delay := max(parseDurationOrDefault(m.delay, defaults.Delay), 0)
 
-	cropTop := parseIntOrDefault(m.cropTop, defaults.Crop.Top)
-	if cropTop < 0 {
-		cropTop = 0
-	}
-	cropBottom := parseIntOrDefault(m.cropBottom, defaults.Crop.Bottom)
-	if cropBottom < 0 {
-		cropBottom = 0
-	}
-	cropLeft := parseIntOrDefault(m.cropLeft, defaults.Crop.Left)
-	if cropLeft < 0 {
-		cropLeft = 0
-	}
-	cropRight := parseIntOrDefault(m.cropRight, defaults.Crop.Right)
-	if cropRight < 0 {
-		cropRight = 0
-	}
+	cropTop := max(parseIntOrDefault(m.cropTop, defaults.Crop.Top), 0)
+	cropBottom := max(parseIntOrDefault(m.cropBottom, defaults.Crop.Bottom), 0)
+	cropLeft := max(parseIntOrDefault(m.cropLeft, defaults.Crop.Left), 0)
+	cropRight := max(parseIntOrDefault(m.cropRight, defaults.Crop.Right), 0)
 
 	cfg := config.Config{
 		URL:      m.url,
@@ -725,10 +704,7 @@ func (m *model) editInsert(insert string) {
 	}
 
 	value := []rune(m.valueForField(field))
-	cursor := m.cursorForField(field)
-	if cursor < 0 {
-		cursor = 0
-	}
+	cursor := max(m.cursorForField(field), 0)
 	if cursor > len(value) {
 		cursor = len(value)
 	}
@@ -884,10 +860,7 @@ func (m model) View() string {
 	b.WriteString(m.renderTabBar())
 	b.WriteString("\n")
 
-	contentWidth := m.width - 6
-	if contentWidth < 50 {
-		contentWidth = 50
-	}
+	contentWidth := max(m.width-6, 50)
 
 	var content string
 	switch m.activeTab {
@@ -932,10 +905,7 @@ func (m model) renderTabBar() string {
 		}
 	}
 
-	barWidth := m.width - 4
-	if barWidth < 50 {
-		barWidth = 50
-	}
+	barWidth := max(m.width-4, 50)
 
 	line := lipgloss.NewStyle().
 		Foreground(primaryColor).
@@ -1075,10 +1045,7 @@ func (m model) renderEditableField(label, value string, editing bool, idx int) s
 
 func (m model) renderEditingValue(field fieldID) string {
 	value := []rune(m.valueForField(field))
-	cursor := m.cursorForField(field)
-	if cursor < 0 {
-		cursor = 0
-	}
+	cursor := max(m.cursorForField(field), 0)
 	if cursor > len(value) {
 		cursor = len(value)
 	}
