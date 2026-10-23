@@ -1,6 +1,7 @@
 name: gowebshot
 default_branch: main
 config:
+  osv: sarif
   description: "Simple command line application for capturing screen shots of webpages."
   license: MIT
   language: go
