@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"image"
 	"image/draw"
@@ -30,9 +31,9 @@ type cdpRequest struct {
 
 // cdpResponse represents a Chrome DevTools Protocol response or event.
 type cdpResponse struct {
-	ID     int             `json:"id,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  json.RawMessage `json:"error,omitempty"`
+	ID     int            `json:"id,omitempty"`
+	Result jsontext.Value `json:"result,omitempty"`
+	Error  jsontext.Value `json:"error,omitempty"`
 }
 
 // cdpSender manages sending CDP commands and reading responses over a WebSocket.
@@ -43,7 +44,7 @@ type cdpSender struct {
 
 // call sends a CDP command and blocks until the matching response arrives,
 // discarding any interleaved events.
-func (s *cdpSender) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
+func (s *cdpSender) call(ctx context.Context, method string, params map[string]any) (jsontext.Value, error) {
 	s.nextID++
 	id := s.nextID
 
@@ -52,7 +53,11 @@ func (s *cdpSender) call(ctx context.Context, method string, params map[string]a
 		Method: method,
 		Params: params,
 	}
-	if err := s.ws.WriteJSON(msg); err != nil {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("encoding %s: %w", method, err)
+	}
+	if err := s.ws.WriteMessage(websocket.TextMessage, data); err != nil {
 		return nil, fmt.Errorf("sending %s: %w", method, err)
 	}
 
@@ -68,7 +73,11 @@ func (s *cdpSender) call(ctx context.Context, method string, params map[string]a
 		}
 
 		var resp cdpResponse
-		if err := s.ws.ReadJSON(&resp); err != nil {
+		_, data, err := s.ws.ReadMessage()
+		if err == nil {
+			err = json.Unmarshal(data, &resp)
+		}
+		if err != nil {
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled waiting for %s: %w", method, ctx.Err())
 			}
